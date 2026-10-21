@@ -3,7 +3,6 @@ import LightFrame from "../components/LightFrame";
 import { asset } from "../lib/asset";
 import { ErrorApi, Registros, mensajeDe, type Persona } from "../lib/api";
 import { experience } from "../experience";
-import { enviarEvius, recordarContacto } from "../lib/evius";
 
 type Campo = "nombre" | "celular" | "empresa" | "correo";
 
@@ -54,10 +53,6 @@ export default function Registro({ onRegistrado, onAgregarId }: Props) {
         correo: valores.correo.trim(),
         experiencia: experience.api,
       });
-      // Supabase ya confirmó el registro: lo mismo va a Evius en segundo plano (con cola y reintentos).
-      const contacto = { email: valores.correo.trim(), fullName: valores.nombre.trim(), phone: valores.celular, company: valores.empresa.trim() };
-      recordarContacto(persona.id, contacto);
-      void enviarEvius(contacto, { score: 100 });
       onRegistrado(persona);
     } catch (err) {
       setError(mensajeDe(err));

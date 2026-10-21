@@ -1,26 +1,24 @@
-/* Registros (base de datos compartida)
+/* Registros (cliente)
  *
- * Punto único de integración con el backend. Las 3 experiencias hablan con la misma función de servidor:
- * el ID (321-321) lo genera el servidor y sirve en las 3. Aquí no hay claves ni tokens.
+ * Punto único del navegador con SU servidor (/api/*, mismo origen: función de Netlify o servidor local). Aquí no hay
+ * claves ni tokens: la base compartida y Evius los maneja el servidor de este proyecto (carpeta server/).
+ * El ID (321-321) lo genera la base y sirve en todas las experiencias.
  *
- *   guardar(datos)           → { id, nombre }          POST /registrar
- *   buscarPorId(id, exp)     → { id, nombre } | null   GET  /participante/:id
- *   actualizar(id, {lienzo}) → true                    POST /participacion
+ *   guardar(datos)           → { id, nombre }          POST /api/registrar
+ *   buscarPorId(id)          → { id, nombre } | null   GET  /api/participante/:id
+ *   actualizar(id, {lienzo}) → true                    POST /api/participacion
  */
 
-const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) || "https://jvhxghykvifkggekcdvi.supabase.co/functions/v1/api";
+const API_URL = "/api";
 
 export const MSG_RED = "No hay conexión con el servidor. Revisa internet e inténtalo de nuevo.";
 
-export type ExperienciaApi = "vr" | "laser" | "mega";
+export type ExperienciaApi = "vr" | "laser" | "mega" | "memory" | "insta";
 
 export interface Persona {
   id: string;
   nombre: string;
   lienzo?: string | null;
-  /** Contacto guardado (solo si aún no completó esta experiencia): sirve para registrarla en Evius. */
-  contacto?: { correo?: string; celular?: string; empresa?: string };
 }
 
 export interface DatosRegistro {
@@ -28,7 +26,8 @@ export interface DatosRegistro {
   celular: string;
   empresa: string;
   correo: string;
-  experiencia: ExperienciaApi;
+  /** Solo informativo: el servidor de cada proyecto ya sabe a qué experiencia pertenece. */
+  experiencia?: ExperienciaApi;
 }
 
 export class ErrorApi extends Error {
@@ -47,7 +46,6 @@ async function pedir<T>(ruta: string, cuerpo?: unknown): Promise<T> {
   const corte = setTimeout(() => ctl.abort(), 12000);
   let res: Response;
   try {
-    // El GET no lleva cabeceras propias: así el navegador se ahorra la petición previa (preflight).
     res = await fetch(
       API_URL + ruta,
       cuerpo === undefined
@@ -74,20 +72,18 @@ async function pedir<T>(ruta: string, cuerpo?: unknown): Promise<T> {
 
 export const Registros = {
   async guardar(datos: DatosRegistro): Promise<Persona> {
-    const huella = JSON.stringify(datos);
+    const { experiencia: _ignorada, ...campos } = datos;
+    const huella = JSON.stringify(campos);
     if (!envio || envio.huella !== huella) envio = { huella, idem: crypto.randomUUID() };
-    const r = await pedir<{ id: string; nombre: string }>("/registrar", { ...datos, idem: envio.idem });
+    const r = await pedir<{ id: string; nombre: string }>("/registrar", { ...campos, idem: envio.idem });
     envio = null;
     return { id: r.id, nombre: r.nombre };
   },
 
-  async buscarPorId(id: string, experiencia: ExperienciaApi): Promise<Persona | null> {
+  async buscarPorId(id: string, _experiencia?: ExperienciaApi): Promise<Persona | null> {
     try {
-      const r = await pedir<{ id: string; nombre: string; lienzo: string | null; correo?: string; celular?: string; empresa?: string }>(
-        `/participante/${encodeURIComponent(id)}?experiencia=${encodeURIComponent(experiencia)}`,
-      );
-      const contacto = r.correo ? { correo: r.correo, celular: r.celular, empresa: r.empresa } : undefined;
-      return { id: r.id, nombre: r.nombre, lienzo: r.lienzo, contacto };
+      const r = await pedir<{ id: string; nombre: string; lienzo: string | null }>(`/participante/${encodeURIComponent(id)}`);
+      return { id: r.id, nombre: r.nombre, lienzo: r.lienzo };
     } catch (e) {
       if (e instanceof ErrorApi && e.codigo === "no_encontrado") return null;
       throw e;
@@ -95,7 +91,7 @@ export const Registros = {
   },
 
   async actualizar(id: string, { lienzo }: { lienzo: string }): Promise<true> {
-    await pedir("/participacion", { id, experiencia: "laser", lienzo });
+    await pedir("/participacion", { id, lienzo });
     return true;
   },
 };
