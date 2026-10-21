@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import LightFrame from "../components/LightFrame";
 import { Registros, mensajeDe, type Persona } from "../lib/api";
 import { experience } from "../experience";
+import { registrarContactoEnEvius } from "../lib/evius";
 
 const soloDigitos = (v: string) => v.replace(/\D+/g, "").slice(0, 3);
 
@@ -53,6 +54,8 @@ export default function AgregaId({ onEncontrado, onVolver }: Props) {
         setError("No encontramos ese ID. Revísalo e inténtalo de nuevo.");
         return;
       }
+      // La persona ya estaba registrada: se rescata su contacto de la base para mandarla a Evius.
+      registrarContactoEnEvius(persona.id, persona.nombre, persona.contacto, { score: 100 });
       onEncontrado(persona);
     } catch (err) {
       setError(mensajeDe(err));

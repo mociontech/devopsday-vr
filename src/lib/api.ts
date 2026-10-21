@@ -19,6 +19,8 @@ export interface Persona {
   id: string;
   nombre: string;
   lienzo?: string | null;
+  /** Contacto guardado (solo si aún no completó esta experiencia): sirve para registrarla en Evius. */
+  contacto?: { correo?: string; celular?: string; empresa?: string };
 }
 
 export interface DatosRegistro {
@@ -81,10 +83,11 @@ export const Registros = {
 
   async buscarPorId(id: string, experiencia: ExperienciaApi): Promise<Persona | null> {
     try {
-      const r = await pedir<{ id: string; nombre: string; lienzo: string | null }>(
+      const r = await pedir<{ id: string; nombre: string; lienzo: string | null; correo?: string; celular?: string; empresa?: string }>(
         `/participante/${encodeURIComponent(id)}?experiencia=${encodeURIComponent(experiencia)}`,
       );
-      return { id: r.id, nombre: r.nombre, lienzo: r.lienzo };
+      const contacto = r.correo ? { correo: r.correo, celular: r.celular, empresa: r.empresa } : undefined;
+      return { id: r.id, nombre: r.nombre, lienzo: r.lienzo, contacto };
     } catch (e) {
       if (e instanceof ErrorApi && e.codigo === "no_encontrado") return null;
       throw e;
